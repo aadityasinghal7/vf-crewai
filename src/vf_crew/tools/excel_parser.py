@@ -124,11 +124,32 @@ class ExcelParserTool(BaseTool):
                 }
             }
 
+            # Store the full data in a temporary location to avoid token limits
+            # Only return metadata and summary information
+            import tempfile
+            import pickle
+
+            # Save data to temp file
+            temp_file = tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pkl')
+            pickle.dump(time_series_groups, temp_file)
+            temp_file.close()
+
+            # Return only summary information
             return {
                 "success": True,
                 "metadata": metadata,
-                "time_series_groups": time_series_groups,
-                "message": f"Successfully parsed {len(time_series_groups)} time series from {len(df)} records"
+                "data_file": temp_file.name,  # Path to temporary data file
+                "time_series_summary": {
+                    ts_key: {
+                        'n_weeks': ts_data['metadata']['n_weeks'],
+                        'total_volume': ts_data['metadata']['total_volume'],
+                        'avg_volume': ts_data['metadata']['avg_volume'],
+                        'start_date': ts_data['metadata']['start_date'],
+                        'end_date': ts_data['metadata']['end_date']
+                    }
+                    for ts_key, ts_data in list(time_series_groups.items())[:20]  # Only first 20 for summary
+                },
+                "message": f"Successfully parsed {len(time_series_groups)} time series from {len(df)} records. Full data saved to temporary file."
             }
 
         except Exception as e:

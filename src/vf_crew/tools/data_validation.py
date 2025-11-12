@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class DataValidationInput(BaseModel):
     """Input schema for DataValidationTool."""
-    time_series_groups: Dict = Field(..., description="Dictionary of time series groups from ExcelParserTool")
+    data_file: str = Field(..., description="Path to pickled time series data file from SelectTopSKUsTool")
     min_weeks_required: int = Field(default=10, description="Minimum weeks of data required for a valid time series")
 
 
@@ -16,26 +16,34 @@ class DataValidationTool(BaseTool):
     description: str = (
         "Validates time series data quality. Checks for sufficient history, "
         "missing values, negative values, and other data quality issues. "
-        "Returns lists of valid and invalid time series with reasons for flagging."
+        "Takes a data_file path and returns validated series data file path."
     )
     args_schema: Type[BaseModel] = DataValidationInput
 
-    def _run(self, time_series_groups: Dict[str, Any], min_weeks_required: int = 10) -> Dict[str, Any]:
+    def _run(self, data_file: str, min_weeks_required: int = 10) -> Dict[str, Any]:
         """
         Validate time series data quality.
 
         Args:
-            time_series_groups: Dictionary of time series from ExcelParserTool
+            data_file: Path to pickled time series data file
             min_weeks_required: Minimum number of weeks required for a valid series
 
         Returns:
             Dictionary containing:
-                - valid_series: List of time series keys that pass validation
-                - invalid_series: List of flagged time series with reasons
+                - data_file: Path to file with valid series only
+                - invalid_series: List of flagged time series with reasons (summary only)
                 - validation_summary: Summary statistics
         """
         try:
+            import pickle
+            import tempfile
+
+            # Load data from file
+            with open(data_file, 'rb') as f:
+                time_series_groups = pickle.load(f)
+
             valid_series = []
+            valid_series_data = {}
             invalid_series = []
 
             # Iterate through each time series
@@ -80,24 +88,24 @@ class DataValidationTool(BaseTool):
                 if critical_issues:
                     invalid_series.append({
                         'time_series_key': ts_key,
-                        'metadata': metadata,
+                        'sku_name': metadata.get('Consumer Product', 'Unknown'),
                         'issues': issues,
                         'critical': True
                     })
-                elif issues:  # Only informational issues
-                    # Still valid but with warnings
-                    valid_series.append({
-                        'time_series_key': ts_key,
-                        'metadata': metadata,
-                        'warnings': issues
-                    })
                 else:
-                    # Completely clean
+                    # Valid series (with or without warnings)
                     valid_series.append({
                         'time_series_key': ts_key,
-                        'metadata': metadata,
-                        'warnings': []
+                        'sku_name': metadata.get('Consumer Product', 'Unknown'),
+                        'warnings': issues if issues else []
                     })
+                    # Keep the full data for valid series
+                    valid_series_data[ts_key] = ts_data
+
+            # Save valid series to new temp file
+            temp_file = tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pkl')
+            pickle.dump(valid_series_data, temp_file)
+            temp_file.close()
 
             # Create validation summary
             validation_summary = {
@@ -119,17 +127,19 @@ class DataValidationTool(BaseTool):
 
             return {
                 "success": True,
-                "valid_series": valid_series,
-                "invalid_series": invalid_series,
+                "data_file": temp_file.name,
+                "valid_series_summary": valid_series[:10],  # Only first 10 for summary
+                "invalid_series": invalid_series[:10],  # Only first 10 for summary
                 "validation_summary": validation_summary,
-                "message": f"Validation complete: {len(valid_series)} valid, {len(invalid_series)} invalid out of {len(time_series_groups)} total"
+                "message": f"Validation complete: {len(valid_series)} valid, {len(invalid_series)} invalid out of {len(time_series_groups)} total. Valid data saved to file."
             }
 
         except Exception as e:
             return {
                 "success": False,
                 "error": f"Error during validation: {str(e)}",
-                "valid_series": [],
+                "data_file": None,
+                "valid_series_summary": [],
                 "invalid_series": [],
                 "validation_summary": {}
             }

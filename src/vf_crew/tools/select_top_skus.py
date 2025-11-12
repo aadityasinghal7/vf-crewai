@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class SelectTopSKUsInput(BaseModel):
     """Input schema for SelectTopSKUsTool."""
-    time_series_groups: Dict = Field(..., description="Dictionary of time series groups from ExcelParserTool")
+    data_file: str = Field(..., description="Path to pickled time series data file from ExcelParserTool")
     top_n: int = Field(default=10, description="Number of top SKUs to select by volume")
 
 
@@ -16,25 +16,32 @@ class SelectTopSKUsTool(BaseTool):
     description: str = (
         "Selects top N SKUs (time series) by total volume. "
         "Filters the time series groups to keep only the highest volume products. "
-        "Returns filtered time series groups and selection summary."
+        "Takes a data_file path from ExcelParserTool and returns a new data file with filtered series."
     )
     args_schema: Type[BaseModel] = SelectTopSKUsInput
 
-    def _run(self, time_series_groups: Dict[str, Any], top_n: int = 10) -> Dict[str, Any]:
+    def _run(self, data_file: str, top_n: int = 10) -> Dict[str, Any]:
         """
         Select top N SKUs by total volume.
 
         Args:
-            time_series_groups: Dictionary of time series from ExcelParserTool
+            data_file: Path to pickled time series data file
             top_n: Number of top SKUs to select (default: 10)
 
         Returns:
             Dictionary containing:
-                - selected_series: Dictionary of top N time series
+                - data_file: Path to new pickled file with selected series
                 - selection_summary: Summary of selection
                 - skipped_count: Number of SKUs not selected
         """
         try:
+            import pickle
+            import tempfile
+
+            # Load data from file
+            with open(data_file, 'rb') as f:
+                time_series_groups = pickle.load(f)
+
             # Calculate total volume for each time series
             sku_volumes = []
 
@@ -60,6 +67,11 @@ class SelectTopSKUsTool(BaseTool):
                 ts_key = sku['ts_key']
                 selected_series[ts_key] = time_series_groups[ts_key]
 
+            # Save selected series to new temp file
+            temp_file = tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pkl')
+            pickle.dump(selected_series, temp_file)
+            temp_file.close()
+
             # Create selection summary
             selection_summary = {
                 'total_skus_available': len(time_series_groups),
@@ -82,17 +94,17 @@ class SelectTopSKUsTool(BaseTool):
 
             return {
                 "success": True,
-                "selected_series": selected_series,
+                "data_file": temp_file.name,
                 "selection_summary": selection_summary,
                 "skipped_count": len(time_series_groups) - len(selected_series),
-                "message": f"Successfully selected top {len(selected_series)} SKUs by volume out of {len(time_series_groups)} total"
+                "message": f"Successfully selected top {len(selected_series)} SKUs by volume out of {len(time_series_groups)} total. Data saved to temporary file."
             }
 
         except Exception as e:
             return {
                 "success": False,
                 "error": f"Error selecting top SKUs: {str(e)}",
-                "selected_series": {},
+                "data_file": None,
                 "selection_summary": {},
                 "skipped_count": 0
             }

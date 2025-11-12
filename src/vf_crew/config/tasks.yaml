@@ -22,10 +22,10 @@ data_preparation_task:
     - Invalid/flagged time series with reasons
 
   expected_output: >
-    A comprehensive JSON structure containing:
+    A JSON structure containing file paths and summaries (NOT the full data):
     {
-      "prepared_series": { dictionary of Prophet-ready time series for top N SKUs },
-      "invalid_series": [ list of flagged series with reasons ],
+      "prepared_series_file": "path to pickled file with Prophet-ready time series for top N SKUs",
+      "invalid_series": [ list of flagged series with reasons (summary only, not full data) ],
       "selection_summary": { info about top N selection },
       "summary": {
         "total_time_series": number,
@@ -36,43 +36,53 @@ data_preparation_task:
       }
     }
 
+    IMPORTANT: Do NOT include the full time series data in the output. Only include file paths and summary statistics.
+    The tools will save data to temporary files and return file paths.
+
   agent: data_management_agent
 
 validation_with_split_task:
   description: >
     Perform validation using train-test split on the prepared top N SKU time series data.
 
-    For EACH valid time series in the prepared_series (from previous task):
-    1. Use TrainTestSplitTool to split data (80% train, 20% test)
-    2. Use ProphetModelTool to train Prophet on training data only
-    3. Use MetricsCalculatorTool to calculate validation metrics on test set:
+    Use the prepared_series_file path from the data_preparation_task output.
+
+    Steps:
+    1. Use TrainTestSplitTool with data_file (from data_preparation_task) to split data (80% train, 20% test)
+       - Returns train_data_file and test_data_file paths
+    2. Use ProphetModelTool with train_data_file to train Prophet on training data only
+       - Returns forecast_file path containing forecasts for training period
+    3. Use MetricsCalculatorTool with test_data_file and forecast_file to calculate validation metrics:
        - MAE (Mean Absolute Error)
        - RMSE (Root Mean Squared Error)
        - MAPE (Mean Absolute Percentage Error)
        - R² (Coefficient of Determination)
        - Forecast Bias
+       - Returns metrics_results list and summary_stats
 
     Process all selected top N SKUs and collect validation metrics for each.
     Create a summary of validation performance across all selected series.
 
+    IMPORTANT: All tools use file-based data passing. Pass file paths between tools, not raw data.
+
     NOTE: This validation is for assessment only. The final forecast will use the full dataset.
 
   expected_output: >
-    A JSON structure containing validation results:
+    A JSON structure containing validation results (NOT file paths for metrics, but the actual summary):
     {
-      "validation_results": [
+      "metrics_results": [
         {
-          "time_series_key": "...",
-          "metadata": { product dimensions },
+          "ts_key": "...",
+          "sku_name": "...",
+          "status": "success",
           "metrics": {
             "MAE": number,
             "RMSE": number,
             "MAPE": number,
             "R2": number,
-            "Bias": number
-          },
-          "train_samples": number,
-          "test_samples": number
+            "Bias": number,
+            "n_samples": number
+          }
         },
         ...
       ],
@@ -80,7 +90,10 @@ validation_with_split_task:
         "avg_MAE": number,
         "avg_RMSE": number,
         "avg_MAPE": number,
-        "avg_R2": number
+        "avg_R2": number,
+        "total_series": number,
+        "successful_series": number,
+        "failed_series": number
       }
     }
 
@@ -101,21 +114,15 @@ final_forecast_generation_task:
     Track any failures or errors during forecasting.
 
   expected_output: >
-    A JSON structure containing all forecasts:
+    A JSON structure containing file path and summary:
     {
-      "forecasts": [
+      "forecasts_file": "path to pickled file containing all forecast data",
+      "forecast_summary": [
         {
           "time_series_key": "...",
-          "metadata": {
-            "RTD Liquid Class Filter": "...",
-            "Industry Type": "...",
-            "Consumer Product": "...",
-            "Partitions": "..."
-          },
-          "forecast": DataFrame with columns [ds, yhat, yhat_lower, yhat_upper],
-          "model_info": { training details }
-        },
-        ...
+          "sku_name": "...",
+          "forecast_periods": number
+        }
       ],
       "summary": {
         "total_forecasts_generated": number,
@@ -123,6 +130,8 @@ final_forecast_generation_task:
         "forecast_horizon_weeks": 26
       }
     }
+
+    IMPORTANT: Do NOT include the full forecast DataFrames in the output. Save to file and return the file path only.
 
   agent: ml_forecasting_agent
   context:
@@ -132,30 +141,38 @@ results_export_task:
   description: >
     Export all results to Excel with visualizations for the top N selected SKUs.
 
-    Compile and export:
-    1. All forecasts from final_forecast_generation_task (top N SKUs)
-    2. All validation metrics from validation_with_split_task (top N SKUs)
-    3. All invalid/flagged series from data_preparation_task
-    4. Summary statistics and metadata including top N selection info
+    Use ExcelExportTool with the following inputs:
+    1. forecasts_file: File path from final_forecast_generation_task output (contains all forecast data)
+    2. validation_results: The validation_with_split_task output dict (contains metrics_results and summary_stats)
+    3. data_prep_results: The data_preparation_task output dict (contains invalid_series list)
+    4. output_path: {output_path}
 
-    Use ExcelExportTool to create a professional Excel workbook with multiple sheets:
-    - Sheet 1: Forecasts for top N SKUs with product dimensions
-    - Sheet 2: Validation metrics summary for top N SKUs
-    - Sheet 3: Flagged/skipped time series log
-    - Sheet 4: Overall summary, statistics, and top N selection details
+    The ExcelExportTool will:
+    - Load forecast data from forecasts_file pickle
+    - Extract metrics from validation_results dict
+    - Extract invalid_series from data_prep_results dict
+    - Create professional Excel workbook with multiple sheets:
+      * Sheet 1: Future forecasts for top N SKUs with product dimensions
+      * Sheet 2: Validation metrics summary for top N SKUs
+      * Sheet 3: Flagged/skipped time series log
+      * Sheet 4: Overall summary, statistics, and top N selection details
+
+    IMPORTANT: Pass the forecasts_file PATH (not the data itself), and pass the validation_results
+    and data_prep_results DICTS (not file paths) to ExcelExportTool.
 
     Optional: Use VisualizationTool to create sample charts for top products.
+    - VisualizationTool requires: historical_data_file, forecast_data_file, time_series_key, title
 
     Save the Excel file to: {output_path}
 
   expected_output: >
     A completion message with:
-    - Output file path
+    - Output file path (absolute path to the Excel file)
     - Number of forecasts exported
     - Number of validation metrics exported
     - Number of flagged series logged
     - List of sheets created
-    - File size information
+    - File size information (in MB)
 
   agent: validation_agent
   context:

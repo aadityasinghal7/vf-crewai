@@ -17,9 +17,9 @@ def run():
     Run the volume forecasting crew.
     """
     # Default paths - update these as needed
-    input_file_path = os.path.abspath("vf_crew/data/input/TBS Weekly Volume.xlsx")
+    input_file_path = os.path.abspath("data/input/TBS Weekly Volume.xlsx")
     output_file_path = os.path.abspath(
-        f"vf_crew/data/output/volume_forecasts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        f"data/output/volume_forecasts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     )
 
     inputs = {
@@ -57,8 +57,8 @@ def train():
     """
     Train the crew for a given number of iterations.
     """
-    input_file_path = os.path.abspath("vf_crew/data/input/TBS Weekly Volume.xlsx")
-    output_file_path = os.path.abspath("vf_crew/data/output/volume_forecasts_train.xlsx")
+    input_file_path = os.path.abspath("data/input/TBS Weekly Volume.xlsx")
+    output_file_path = os.path.abspath("data/output/volume_forecasts_train.xlsx")
 
     inputs = {
         'file_path': input_file_path,
@@ -91,8 +91,8 @@ def test():
     """
     Test the crew execution and returns the results.
     """
-    input_file_path = os.path.abspath("vf_crew/data/input/TBS Weekly Volume.xlsx")
-    output_file_path = os.path.abspath("vf_crew/data/output/volume_forecasts_test.xlsx")
+    input_file_path = os.path.abspath("data/input/TBS Weekly Volume.xlsx")
+    output_file_path = os.path.abspath("data/output/volume_forecasts_test.xlsx")
 
     inputs = {
         'file_path': input_file_path,
@@ -125,9 +125,9 @@ def run_with_trigger():
         raise Exception("Invalid JSON payload provided as argument")
 
     # Extract parameters from trigger payload or use defaults
-    file_path = trigger_payload.get('file_path', 'vf_crew/data/input/TBS Weekly Volume.xlsx')
+    file_path = trigger_payload.get('file_path', 'data/input/TBS Weekly Volume.xlsx')
     output_path = trigger_payload.get('output_path',
-                                      f'vf_crew/data/output/volume_forecasts_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx')
+                                      f'data/output/volume_forecasts_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx')
 
     inputs = {
         "crewai_trigger_payload": trigger_payload,

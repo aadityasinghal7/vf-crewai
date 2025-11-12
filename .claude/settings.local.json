@@ -7,7 +7,14 @@
       "Bash(powershell.exe -Command \"Remove-Item -Path ''C:\\Users\\Y946107\\OneDrive - Anheuser-Busch InBev\\FY25\\Personal git repo\\volume-forecast-crewai\\data\\input'' -Force -Recurse -ErrorAction SilentlyContinue; Remove-Item -Path ''C:\\Users\\Y946107\\OneDrive - Anheuser-Busch InBev\\FY25\\Personal git repo\\volume-forecast-crewai\\data'' -Force -Recurse\")",
       "Bash(git init:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(powershell.exe -Command \"Remove-Item -Path ''data\\input'' -Force -Recurse -ErrorAction SilentlyContinue; Remove-Item -Path ''data'' -Force -Recurse\")",
+      "Bash(powershell.exe -Command:*)",
+      "Bash(uv venv:*)",
+      "Bash(uv add:*)",
+      "Bash(uv run:*)"
     ],
     "deny": [],
     "ask": []
