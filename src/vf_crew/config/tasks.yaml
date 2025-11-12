@@ -1,0 +1,164 @@
+data_preparation_task:
+  description: >
+    Load and prepare the time series data from the Excel file at: {file_path}
+
+    Steps to perform:
+    1. Use ExcelParserTool to read and parse the Excel file
+    2. Use SelectTopSKUsTool to filter top {top_n_skus} SKUs by total volume
+       - Calculate total volume per SKU across all weeks
+       - Select top N SKUs with highest volumes
+       - Keep track of selection summary
+    3. Use DataValidationTool to validate data quality and identify problematic time series
+       - Flag series with less than {min_weeks} weeks of data
+       - Identify series with data quality issues
+    4. Use TimeSeriesPreparationTool to format valid time series for Prophet modeling
+       - Convert to Prophet format (ds, y columns)
+       - Ensure proper date formatting
+
+    You should process the top {top_n_skus} SKUs selected by volume. Keep track of:
+    - Total time series found in file
+    - Top N SKUs selected
+    - Valid time series prepared
+    - Invalid/flagged time series with reasons
+
+  expected_output: >
+    A comprehensive JSON structure containing:
+    {
+      "prepared_series": { dictionary of Prophet-ready time series for top N SKUs },
+      "invalid_series": [ list of flagged series with reasons ],
+      "selection_summary": { info about top N selection },
+      "summary": {
+        "total_time_series": number,
+        "top_n_selected": number,
+        "valid_count": number,
+        "invalid_count": number,
+        "validation_summary": { detailed stats }
+      }
+    }
+
+  agent: data_management_agent
+
+validation_with_split_task:
+  description: >
+    Perform validation using train-test split on the prepared top N SKU time series data.
+
+    For EACH valid time series in the prepared_series (from previous task):
+    1. Use TrainTestSplitTool to split data (80% train, 20% test)
+    2. Use ProphetModelTool to train Prophet on training data only
+    3. Use MetricsCalculatorTool to calculate validation metrics on test set:
+       - MAE (Mean Absolute Error)
+       - RMSE (Root Mean Squared Error)
+       - MAPE (Mean Absolute Percentage Error)
+       - R² (Coefficient of Determination)
+       - Forecast Bias
+
+    Process all selected top N SKUs and collect validation metrics for each.
+    Create a summary of validation performance across all selected series.
+
+    NOTE: This validation is for assessment only. The final forecast will use the full dataset.
+
+  expected_output: >
+    A JSON structure containing validation results:
+    {
+      "validation_results": [
+        {
+          "time_series_key": "...",
+          "metadata": { product dimensions },
+          "metrics": {
+            "MAE": number,
+            "RMSE": number,
+            "MAPE": number,
+            "R2": number,
+            "Bias": number
+          },
+          "train_samples": number,
+          "test_samples": number
+        },
+        ...
+      ],
+      "summary_stats": {
+        "avg_MAE": number,
+        "avg_RMSE": number,
+        "avg_MAPE": number,
+        "avg_R2": number
+      }
+    }
+
+  agent: validation_agent
+  context:
+    - data_preparation_task
+
+final_forecast_generation_task:
+  description: >
+    Generate final 6-month forecasts using the FULL dataset (no split) for the top N selected SKUs.
+
+    For EACH valid time series from the selected top N SKUs:
+    1. Use ProphetModelTool to train on the FULL dataset (all {n_weeks} weeks)
+    2. Generate forecasts for {forecast_periods} periods ahead (6 months = 26 weeks)
+    3. Collect forecasts with confidence intervals (yhat, yhat_lower, yhat_upper)
+
+    Process ALL selected top N SKUs and compile all forecasts with metadata.
+    Track any failures or errors during forecasting.
+
+  expected_output: >
+    A JSON structure containing all forecasts:
+    {
+      "forecasts": [
+        {
+          "time_series_key": "...",
+          "metadata": {
+            "RTD Liquid Class Filter": "...",
+            "Industry Type": "...",
+            "Consumer Product": "...",
+            "Partitions": "..."
+          },
+          "forecast": DataFrame with columns [ds, yhat, yhat_lower, yhat_upper],
+          "model_info": { training details }
+        },
+        ...
+      ],
+      "summary": {
+        "total_forecasts_generated": number,
+        "failed_forecasts": number,
+        "forecast_horizon_weeks": 26
+      }
+    }
+
+  agent: ml_forecasting_agent
+  context:
+    - data_preparation_task
+
+results_export_task:
+  description: >
+    Export all results to Excel with visualizations for the top N selected SKUs.
+
+    Compile and export:
+    1. All forecasts from final_forecast_generation_task (top N SKUs)
+    2. All validation metrics from validation_with_split_task (top N SKUs)
+    3. All invalid/flagged series from data_preparation_task
+    4. Summary statistics and metadata including top N selection info
+
+    Use ExcelExportTool to create a professional Excel workbook with multiple sheets:
+    - Sheet 1: Forecasts for top N SKUs with product dimensions
+    - Sheet 2: Validation metrics summary for top N SKUs
+    - Sheet 3: Flagged/skipped time series log
+    - Sheet 4: Overall summary, statistics, and top N selection details
+
+    Optional: Use VisualizationTool to create sample charts for top products.
+
+    Save the Excel file to: {output_path}
+
+  expected_output: >
+    A completion message with:
+    - Output file path
+    - Number of forecasts exported
+    - Number of validation metrics exported
+    - Number of flagged series logged
+    - List of sheets created
+    - File size information
+
+  agent: validation_agent
+  context:
+    - data_preparation_task
+    - validation_with_split_task
+    - final_forecast_generation_task

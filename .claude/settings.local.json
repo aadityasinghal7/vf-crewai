@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c:*)",
+      "Bash(cmd.exe /c \"rd /s /q \"\"C:\\Users\\Y946107\\OneDrive - Anheuser-Busch InBev\\FY25\\Personal git repo\\volume-forecast-crewai\\data\"\"\")",
+      "Bash(test:*)",
+      "Bash(powershell.exe -Command \"Remove-Item -Path ''C:\\Users\\Y946107\\OneDrive - Anheuser-Busch InBev\\FY25\\Personal git repo\\volume-forecast-crewai\\data\\input'' -Force -Recurse -ErrorAction SilentlyContinue; Remove-Item -Path ''C:\\Users\\Y946107\\OneDrive - Anheuser-Busch InBev\\FY25\\Personal git repo\\volume-forecast-crewai\\data'' -Force -Recurse\")",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
