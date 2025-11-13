@@ -45,16 +45,23 @@ def run():
     """
     Run the volume forecasting crew.
     """
-    # Default paths - update these as needed
-    input_file_path = os.path.abspath("data/input/TBS Weekly Volume.xlsx")
-    output_file_path = os.path.abspath(
-        f"data/output/volume_forecasts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    )
+    # Prompt user for input file path
+    print("\nPlease enter the path to your input Excel file:")
+    print("(Press Enter to use default: data/input/TBS Weekly Volume.xlsx)")
+    user_input = input("> ").strip()
+
+    if user_input:
+        input_file_path = os.path.abspath(user_input)
+    else:
+        input_file_path = os.path.abspath("data/input/TBS Weekly Volume.xlsx")
+
+    # Fixed output path
+    output_file_path = os.path.abspath("data/output/volume_forecasts.xlsx")
 
     inputs = {
         'file_path': input_file_path,
         'output_path': output_file_path,
-        'top_n_skus': get_top_n_skus(),  # Number of top SKUs to process by volume (from env var TOP_N_SKUS, default: 10)
+        'top_n_skus': 10,  # Number of top SKUs to process by volume
         'min_weeks': 10,  # Minimum weeks of data required for valid time series
         'forecast_periods': 26,  # 6 months = 26 weeks
         'n_weeks': 151,  # Total weeks in dataset
@@ -86,13 +93,23 @@ def train():
     """
     Train the crew for a given number of iterations.
     """
-    input_file_path = os.path.abspath("data/input/TBS Weekly Volume.xlsx")
-    output_file_path = os.path.abspath("data/output/volume_forecasts_train.xlsx")
+    # Prompt user for input file path
+    print("\nPlease enter the path to your input Excel file:")
+    print("(Press Enter to use default: data/input/TBS Weekly Volume.xlsx)")
+    user_input = input("> ").strip()
+
+    if user_input:
+        input_file_path = os.path.abspath(user_input)
+    else:
+        input_file_path = os.path.abspath("data/input/TBS Weekly Volume.xlsx")
+
+    # Fixed output path
+    output_file_path = os.path.abspath("data/output/volume_forecasts.xlsx")
 
     inputs = {
         'file_path': input_file_path,
         'output_path': output_file_path,
-        'top_n_skus': get_top_n_skus(),
+        'top_n_skus': 10,
         'min_weeks': 10,
         'forecast_periods': 26,
         'n_weeks': 151,
@@ -120,13 +137,23 @@ def test():
     """
     Test the crew execution and returns the results.
     """
-    input_file_path = os.path.abspath("data/input/TBS Weekly Volume.xlsx")
-    output_file_path = os.path.abspath("data/output/volume_forecasts_test.xlsx")
+    # Prompt user for input file path
+    print("\nPlease enter the path to your input Excel file:")
+    print("(Press Enter to use default: data/input/TBS Weekly Volume.xlsx)")
+    user_input = input("> ").strip()
+
+    if user_input:
+        input_file_path = os.path.abspath(user_input)
+    else:
+        input_file_path = os.path.abspath("data/input/TBS Weekly Volume.xlsx")
+
+    # Fixed output path
+    output_file_path = os.path.abspath("data/output/volume_forecasts.xlsx")
 
     inputs = {
         'file_path': input_file_path,
         'output_path': output_file_path,
-        'top_n_skus': get_top_n_skus(),  # Number of top SKUs to process by volume (from env var TOP_N_SKUS, default: 10)
+        'top_n_skus': 10,  # Number of top SKUs to process by volume
         'min_weeks': 10,
         'forecast_periods': 26,
         'n_weeks': 151,
