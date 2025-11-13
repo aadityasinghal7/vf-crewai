@@ -137,14 +137,19 @@ class TrainTestSplitTool(BaseTool):
             pickle.dump(test_splits, test_file)
             test_file.close()
 
+            # Calculate max test samples for Prophet forecast_periods
+            successful_splits = [s for s in split_summaries if s['status'] == 'success']
+            max_test_samples = max([s['test_samples'] for s in successful_splits]) if successful_splits else 0
+
             return {
                 "success": True,
                 "train_data_file": train_file.name,
                 "test_data_file": test_file.name,
                 "split_summaries": split_summaries[:10],  # First 10 for summary
+                "max_test_samples": max_test_samples,  # For Prophet forecast_periods during validation
                 "total_splits": len(train_splits),
                 "failed_splits": len([s for s in split_summaries if s['status'] == 'failed']),
-                "message": f"Successfully split {len(train_splits)} time series (train_ratio={train_ratio}). Data saved to files."
+                "message": f"Successfully split {len(train_splits)} time series (train_ratio={train_ratio}). Max test samples: {max_test_samples}. For validation, use forecast_periods={max_test_samples} with ProphetModelTool."
             }
 
         except Exception as e:

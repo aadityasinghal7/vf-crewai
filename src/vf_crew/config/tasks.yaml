@@ -50,9 +50,14 @@ validation_with_split_task:
     Steps:
     1. Use TrainTestSplitTool with data_file (from data_preparation_task) to split data (80% train, 20% test)
        - Returns train_data_file and test_data_file paths
-    2. Use ProphetModelTool with train_data_file to train Prophet on training data only
-       - Returns forecast_file path containing forecasts for training period
-    3. Use MetricsCalculatorTool with test_data_file and forecast_file to calculate validation metrics:
+       - Returns split_summaries with test_samples for each series
+    2. CALCULATE TEST PERIOD LENGTH: Extract the maximum test_samples from split_summaries to determine
+       how many periods Prophet needs to forecast for validation
+    3. Use ProphetModelTool with train_data_file to train Prophet on training data only
+       - IMPORTANT: Set forecast_periods parameter to match the test period length (from step 2)
+       - This ensures Prophet forecasts cover the exact test period dates
+       - Returns forecast_file path containing forecasts for the test period
+    4. Use MetricsCalculatorTool with test_data_file and forecast_file to calculate validation metrics:
        - MAE (Mean Absolute Error)
        - RMSE (Root Mean Squared Error)
        - MAPE (Mean Absolute Percentage Error)
@@ -64,6 +69,7 @@ validation_with_split_task:
     Create a summary of validation performance across all selected series.
 
     IMPORTANT: All tools use file-based data passing. Pass file paths between tools, not raw data.
+    CRITICAL: Prophet forecast_periods MUST equal test period length for proper date alignment.
 
     NOTE: This validation is for assessment only. The final forecast will use the full dataset.
 

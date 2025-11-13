@@ -91,26 +91,61 @@ class MetricsCalculatorTool(BaseTool):
                 # Extract forecast data
                 forecast_dict = forecast_data_groups[ts_key]
                 if 'historical_fit' in forecast_dict:
-                    # Prophet output format - we need the historical fit for the test period
+                    # Prophet output format - we need the forecast for the test period
+                    # The test period should be in the future_forecast (dates after training end)
                     forecast_full = forecast_dict['forecast_full']
-                    # Match dates with test data
-                    test_dates = test_df['ds'].values
-                    forecast_for_test = forecast_full[forecast_full['ds'].isin(test_dates)]
 
-                    if len(forecast_for_test) == 0:
-                        metrics_results.append({
-                            'ts_key': ts_key,
-                            'status': 'failed',
-                            'error': 'No matching forecast dates for test period'
-                        })
-                        continue
+                    # Convert dates to pandas datetime for proper comparison
+                    test_df_copy = test_df.copy()
+                    forecast_full_copy = forecast_full.copy()
+                    test_df_copy['ds'] = pd.to_datetime(test_df_copy['ds'])
+                    forecast_full_copy['ds'] = pd.to_datetime(forecast_full_copy['ds'])
 
-                    # Align by date
-                    test_df_sorted = test_df.sort_values('ds').reset_index(drop=True)
-                    forecast_sorted = forecast_for_test.sort_values('ds').reset_index(drop=True)
+                    # Use merge to align dates properly
+                    merged = pd.merge(
+                        test_df_copy[['ds', 'y']],
+                        forecast_full_copy[['ds', 'yhat']],
+                        on='ds',
+                        how='inner'
+                    )
 
-                    y_true = test_df_sorted['y'].values
-                    y_pred = forecast_sorted['yhat'].values
+                    if len(merged) == 0:
+                        # Try date range overlap as fallback
+                        test_start = test_df_copy['ds'].min()
+                        test_end = test_df_copy['ds'].max()
+                        forecast_in_range = forecast_full_copy[
+                            (forecast_full_copy['ds'] >= test_start) &
+                            (forecast_full_copy['ds'] <= test_end)
+                        ]
+
+                        if len(forecast_in_range) == 0:
+                            metrics_results.append({
+                                'ts_key': ts_key,
+                                'status': 'failed',
+                                'error': f'No matching forecast dates for test period. Test range: {test_start.date()} to {test_end.date()}, Forecast range: {forecast_full_copy["ds"].min().date()} to {forecast_full_copy["ds"].max().date()}'
+                            })
+                            continue
+
+                        # Use range-based matching with nearest dates
+                        merged = pd.merge_asof(
+                            test_df_copy[['ds', 'y']].sort_values('ds'),
+                            forecast_full_copy[['ds', 'yhat']].sort_values('ds'),
+                            on='ds',
+                            direction='nearest',
+                            tolerance=pd.Timedelta(days=7)  # Allow up to 7-day tolerance for weekly data
+                        )
+
+                        if merged['yhat'].isna().all():
+                            metrics_results.append({
+                                'ts_key': ts_key,
+                                'status': 'failed',
+                                'error': 'Could not align test and forecast dates even with tolerance'
+                            })
+                            continue
+
+                    # Extract aligned values
+                    y_true = merged['y'].values
+                    y_pred = merged['yhat'].values
                 else:
                     # Fallback format
                     metrics_results.append({
